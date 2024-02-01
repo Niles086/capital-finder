@@ -10,6 +10,8 @@ class handler(BaseHTTPRequestHandler):
 
         # Extracting query parameters
         query_params = parse.parse_qs(url_components.query)
+        print(f"Received request with query parameters: {query_params}")
+
 
         # Check if 'country' or 'capital' is present in the query parameters
         if 'country' in query_params:
