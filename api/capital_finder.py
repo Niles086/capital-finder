@@ -1,48 +1,56 @@
-# capital_finder.py
-
-import requests 
 from http.server import BaseHTTPRequestHandler
 from urllib import parse
+import requests
 
-class handler(BaseHTTPRequestHandler):
+class handler(BaseHTTPRequestHandler): 
+    
     def do_GET(self):
-        url_components = parse.urlsplit(self.path)
+        string = self.path
+        url_components = parse.urlsplit(string)
+        query_string_list = parse.parse_qsl(url_components.query)
+        dic = dict(query_string_list)
+        
+        message = "Please provide a country or capital name"
+        
+        if "country" in dic:
+            capitals = self.get_information(f"https://restcountries.com/v3.1/name/{dic['country']}", "capital")
+            
+            if capitals:
+                capital_name = capitals[0]
+                message = f"The capital of {dic['country'].title()} is {capital_name}."
+                
+            else:
+                message = f"Unable to find the capital of {dic['country'].title()}."
 
-        # Extracting query parameters
-        query_params = parse.parse_qs(url_components.query)
-        print(f"Received request with query parameters: {query_params}")
-
-
-        # Check if 'country' or 'capital' is present in the query parameters
-        if 'country' in query_params:
-            country_name = query_params['country'][0]
-            capital = self.get_capital_by_country(country_name)
-            response = f'The capital of {country_name} is {capital}.'
-        elif 'capital' in query_params:
-            capital_name = query_params['capital'][0]
-            country = self.get_country_by_capital(capital_name)
-            response = f'{capital_name} is the capital of {country}.'
-        else:
-            response = 'Invalid request. Please provide either "country" or "capital" parameter.'
-
-        # Sending the response
+        elif "capital" in dic:
+            countries = self.get_information(f"https://restcountries.com/v3.1/capital/{dic['capital']}", "country")
+            
+            if countries:
+                country_name = countries[0]
+                message = f"{dic['capital'].title()} is the capital of {country_name}."
+            else:
+                message = f"Unable to find a country with the capital {dic['capital'].title()}."
+                
         self.send_response(200)
-        self.send_header('Content-type', 'text/plain')
+        self.send_header('Content-type','text/plain')
         self.end_headers()
-        self.wfile.write(response.encode())
+        self.wfile.write(message.encode('utf-8'))
+        return
+    
+    def get_information(self, url, type):
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+            data = response.json()
 
-    def get_capital_by_country(self, country_name):
-        # Using REST Countries API to get capital by country name
-        url = f'https://restcountries.com/v3.1/name/{country_name}?fields=capital'
-        response = requests.get(url)
-        data = response.json()
-        capital = data[0]['capital'][0] if data else 'Unknown'
-        return capital
+            if type == "capital":
+                return [country_data["capital"][0] for country_data in data if "capital" in country_data]
+            elif type == "country":
+                return [country_data["name"]["common"] for country_data in data]
 
-    def get_country_by_capital(self, capital_name):
-        # Using REST Countries API to get country by capital name
-        url = f'https://restcountries.com/v3.1/capital/{capital_name}?fields=name'
-        response = requests.get(url)
-        data = response.json()
-        country = data[0]['name']['common'] if data else 'Unknown'
-        return country
+        except requests.exceptions.HTTPError as err:
+            return []
+        except requests.exceptions.RequestException as err:
+            return []
+        except KeyError:
+            return "Error in parsing data"
